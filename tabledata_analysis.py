@@ -52,10 +52,10 @@ class TableDataLGBMAnalyzer:
             'bagging_fraction': (0.7, 1.0),
             'lambda_l1': (0, 6)
         }
+        self.enable_pos_weight = False
 
 
     # param_dict: max_depth, num_leaves, min_data_in_leaf, feature_fraction, bagging_fraction, lambda_l1
-    # 検証済み
     def set_params(self, param_dict):
         # BOでfloatになるため、整数値を担保する必要がある
         for k in ['num_leaves', 'min_data_in_leaf', 'max_depth']:
@@ -78,10 +78,9 @@ class TableDataLGBMAnalyzer:
         self.params['scale_pos_weight'] = 1.0
 
 
-    # 検証済み
-    def basic_predict(self, train_Data, train_Target, val_Data, val_Target, enable_pos_weight=False):
+    def basic_predict(self, train_Data, train_Target, val_Data, val_Target):
         # 誤差関数の重みをつける場合はここでつける
-        if enable_pos_weight:
+        if self.enable_pos_weight:
             self.set_pos_weight(train_Data, train_Target)
         else:
             self.reset_pos_weight()
@@ -118,25 +117,13 @@ class TableDataLGBMAnalyzer:
         return pred_y
 
 
-    def cv_predict(self, enable_pos_weight=False, n_splits=5, smote_rate=0):
-        folds = KFold(n_splits=n_splits, shuffle=True, random_state=np.random.randint(0, 10000))
-
-        Data = self.tabledata.Data
-        Target = self.tabledata.Target
-        features = self.tabledata.feature_columns
-        categorical_features = self.tabledata.categorical_features
-        oof = np.zeros(len(Data))
-
-        for fold_, (trn_idx, val_idx) in enumerate(folds.split(Data.values, Target.values)):
-            train_Data, train_Target = Data.iloc[trn_idx], Target.iloc[trn_idx]
-            val_Data, val_Target = Data.iloc[val_idx], Target.iloc[val_idx]
-            train_Data, train_Target = create_smoteDataset(train_Data, train_Target, smote_rate)
-
-            oof[val_idx] = self.basic_predict(train_Data, train_Target, val_Data, val_Target, enable_pos_weight=enable_pos_weight)
-        return oof
+    def get_predict_function(self):
+        def predict_function(train_Data, train_Target, val_Data, val_Target):
+            return self.basic_predict(train_Data, train_Target, val_Data, val_Target)
+        return predict_function
 
 
-    def get_BayesianOptimization_function(self, enable_pos_weight=False, smote_rate=0):
+    def get_BayesianOptimization_function(self, smote_rate=0):
         def BayesianOptimization_function(max_depth, num_leaves, min_data_in_leaf, feature_fraction, bagging_fraction, lambda_l1):
             param_dict = {
                 'max_depth': max_depth,
@@ -152,14 +139,14 @@ class TableDataLGBMAnalyzer:
             # 5回の平均値を最大化する
             auc_scores = []
             for i in range(5):
-                oof = self.cv_predict(enable_pos_weight=enable_pos_weight, n_splits=5, smote_rate=smote_rate)
+                oof = cv_predict(self.tabledata, self.get_predict_function(), n_splits=5, smote_rate=smote_rate)
                 auc_scores.append(roc_auc_score(self.tabledata.Target.values, oof))
             return np.mean(auc_scores)
         return BayesianOptimization_function
 
 
-    def get_best_params_by_BayesianOptimization(self, enable_pos_weight=False, smote_rate=0, init_points=2, n_iter=20):
-        BayesianOptimization_function = self.get_BayesianOptimization_function(enable_pos_weight=enable_pos_weight, smote_rate=smote_rate)
+    def get_best_params_by_BayesianOptimization(self, smote_rate=0, init_points=2, n_iter=20):
+        BayesianOptimization_function = self.get_BayesianOptimization_function(smote_rate=smote_rate)
         BO_object = BayesianOptimization(BayesianOptimization_function, self.pbounds, verbose=0)
         BO_object.maximize(init_points=init_points, n_iter=n_iter, acq='ei', xi=0.0)
         best_params = BO_object.max['params']
@@ -176,9 +163,27 @@ def create_smoteDataset(Data, Target, smote_rate):
             k_neighbors=3,
             random_state=np.random.randint(0, 10000)
         )
-        X_sm, y_sm = sm.fit_resample(Data.values, Target.values)
+        X_sm, y_sm = sm.fit_sample(Data.values, Target.values)
         smData = pd.DataFrame(X_sm, columns=Data.columns)
         smTarget = pd.Series(y_sm, name='Target')
         return smData, smTarget
     else:
         raise ValueError('smote_rate must be in (0, 1)')
+
+
+# tabledata: TableData object
+# predict_function(train_Data, train_Target, test_Data, test_Target) -> return pred_y
+def cv_predict(tabledata, predict_function, n_splits=5, smote_rate=0):
+    folds = KFold(n_splits=n_splits, shuffle=True, random_state=np.random.randint(0, 10000))
+
+    Data = tabledata.Data
+    Target = tabledata.Target
+    oof = np.zeros(len(Data))
+
+    for fold_, (trn_idx, val_idx) in enumerate(folds.split(Data.values, Target.values)):
+        train_Data, train_Target = Data.iloc[trn_idx], Target.iloc[trn_idx]
+        val_Data, val_Target = Data.iloc[val_idx], Target.iloc[val_idx]
+        train_Data, train_Target = create_smoteDataset(train_Data, train_Target, smote_rate)
+
+        oof[val_idx] = predict_function(train_Data, train_Target, val_Data, val_Target)
+    return oof
