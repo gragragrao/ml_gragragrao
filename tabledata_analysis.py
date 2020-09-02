@@ -176,7 +176,9 @@ def create_smoteDataset(Data, Target, smote_rate):
             k_neighbors=3,
             random_state=np.random.randint(0, 10000)
         )
-        smData, smTarget = sm.fit_resample(Data, Target)
+        X_sm, y_sm = sm.fit_resample(Data.values, Target.values)
+        smData = pd.DataFrame(X_sm, columns=Data.columns)
+        smTarget = pd.Series(y_sm, name='Target')
         return smData, smTarget
     else:
         raise ValueError('smote_rate must be in (0, 1)')
