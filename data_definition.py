@@ -3,7 +3,7 @@
 ################
 ## pandas.DataFrame
 #####################################################################################
-### ERID # Other colmns not using # Feature1 # Feature2 # ... # FeatureN # Target ###
+### Accessary columns # Feature1 # Feature2 # ... # FeatureN # Target ###
 #####################################################################################
 
 ##########
