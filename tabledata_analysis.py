@@ -145,12 +145,11 @@ class TableDataLGBMAnalyzer:
         return BayesianOptimization_function
 
 
-    def get_best_params_by_BayesianOptimization(self, smote_rate=0, init_points=2, n_iter=20):
+    def get_best_BayesianOptimization(self, smote_rate=0, init_points=2, n_iter=20):
         BayesianOptimization_function = self.get_BayesianOptimization_function(smote_rate=smote_rate)
         BO_object = BayesianOptimization(BayesianOptimization_function, self.pbounds, verbose=0)
         BO_object.maximize(init_points=init_points, n_iter=n_iter, acq='ei', xi=0.0)
-        best_params = BO_object.max['params']
-        return best_params
+        return BO_object
 
 
 # smoteアルゴリズムによるオーバーサンプリング
