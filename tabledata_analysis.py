@@ -157,15 +157,21 @@ def create_smoteDataset(Data, Target, smote_rate):
     if smote_rate == 0:
         return Data, Target
     elif 0 < smote_rate < 1:
-        sm = SMOTE(
-            sampling_strategy=smote_rate,
-            k_neighbors=3,
-            random_state=np.random.randint(0, 10000)
-        )
-        X_sm, y_sm = sm.fit_sample(Data.values, Target.values)
-        smData = pd.DataFrame(X_sm, columns=Data.columns)
-        smTarget = pd.Series(y_sm, name='Target')
-        return smData, smTarget
+        try:
+            sm = SMOTE(
+                sampling_strategy=smote_rate,
+                k_neighbors=3,
+                random_state=np.random.randint(0, 10000)
+            )
+            X_sm, y_sm = sm.fit_sample(Data.values, Target.values)
+            smData = pd.DataFrame(X_sm, columns=Data.columns)
+            smTarget = pd.Series(y_sm, name='Target')
+            return smData, smTarget
+        # Targetに含まれる1が4未満の場合にエラーが発生する
+        # ValueError: Expected n_neighbors <= n_samples,  but n_samples = 2, n_neighbors = 4
+        # 低確率（1/1000程度で起こる）なのでこの場合はオーバーサンプリング無しとする
+        except ValueError:
+            return Data, Target
     else:
         raise ValueError('smote_rate must be in (0, 1)')
 
