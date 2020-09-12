@@ -25,7 +25,7 @@ class TableData:
 
     # data_tableからFeature Columnsだけを取得する
     def get_feature_columns(self):
-        all_columns = data_table.columns
+        all_columns = self.data_table.columns
         feature_columns = [c for c in all_columns if c not in self.accessary_columns and c != self.target_column]
         return feature_columns
 
