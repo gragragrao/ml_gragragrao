@@ -9,6 +9,8 @@ from bayes_opt import BayesianOptimization
 from sklearn.metrics import roc_auc_score
 
 import lightgbm as lgb
+from sklearn.linear_model import Lasso
+from sklearn.linear_model import LogisticRegression
 
 
 # data_definitionのdata_tableを前提としている
@@ -150,6 +152,85 @@ class TableDataLGBMAnalyzer:
         BO_object = BayesianOptimization(BayesianOptimization_function, self.pbounds, verbose=0)
         BO_object.maximize(init_points=init_points, n_iter=n_iter, acq='ei', xi=0.0)
         return BO_object
+
+
+class TableDataLassoAnalyzer:
+    INITIAL_ALPHA = 0.1
+
+
+    def __init__(self, tabledata):
+        self.tabledata = tabledata
+        self.alpha = self.INITIAL_ALPHA  # 初期値
+
+
+    def set_alpha(self, alpha):
+        self.alpha = alpha
+
+
+    def reset_alpha(self):
+        self.alpha = self.INITIAL_ALPHA
+
+
+    def basis_predict(self, train_Data, train_Target, test_Data, test_Target):
+        train_X, train_y = train_Data.values, train_Target.values
+        test_X, test_y = test_Data.values, test_Target.values
+
+        clf = Lasso(alpha=self.alpha, random_state=np.random.randint(0, 10000))
+        clf.fit(train_X, train_y)
+
+        pred_y = clf.predict(test_X)
+
+        del clf
+        gc.collect()
+
+        return pred_y
+
+
+    def get_predict_function(self):
+        def predict_function(train_Data, train_Target, test_Data, test_Target):
+            return self.basis_predict(train_Data, train_Target, test_Data, test_Target)
+        return predict_function
+
+
+class TableDataLogisticRegressionAnalyzer:
+    INITIAL_PENALTY = 'none'  # none, l1, l2, elasticnet
+
+
+    def __init__(self, tabledata):
+        self.tabledata = tabledata
+        self.penalty = self.INITIAL_PENALTY  # 初期値
+
+
+    def set_alpha(self, penalty):
+        if penalty in ['none', 'l1', 'l2', 'elasticnet']:
+            self.penalty = penalty
+        else:
+            print('penaltyの値に誤りがあります.')
+
+
+    def reset_alpha(self):
+        self.penalty = self.INITIAL_PENALTY
+
+
+    def basis_predict(self, train_Data, train_Target, test_Data, test_Target):
+        train_X, train_y = train_Data.values, train_Target.values
+        test_X, test_y = test_Data.values, test_Target.values
+
+        clf = LogisticRegression(penalty=self.penalty, random_state=np.random.randint(0, 10000))
+        clf.fit(train_X, train_y)
+
+        pred_y = clf.predict_proba(test_X)[:, 1]
+
+        del clf
+        gc.collect()
+
+        return pred_y
+
+
+    def get_predict_function(self):
+        def predict_function(train_Data, train_Target, test_Data, test_Target):
+            return self.basis_predict(train_Data, train_Target, test_Data, test_Target)
+        return predict_function
 
 
 # smoteアルゴリズムによるオーバーサンプリング
