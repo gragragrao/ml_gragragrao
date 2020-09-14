@@ -212,6 +212,10 @@ class TableDataLogisticRegressionAnalyzer:
         self.penalty = self.INITIAL_PENALTY
 
 
+    def hoge(self):
+        print('hoge2')
+
+
     def basis_predict(self, train_Data, train_Target, test_Data, test_Target):
         train_X, train_y = train_Data.values, train_Target.values
         test_X, test_y = test_Data.values, test_Target.values
@@ -273,3 +277,10 @@ def cv_predict(tabledata, predict_function, n_splits=5, smote_rate=0):
 
         oof[val_idx] = predict_function(train_Data, train_Target, val_Data, val_Target)
     return oof
+
+
+# 信頼区間を返す
+# alpha = 0.05の時, 95%信頼区間
+def get_cis(score_list, alpha=0.05):
+    cis = np.quantile(score_list, [alpha/2, 0.5, 1-alpha/2])
+    return cis
